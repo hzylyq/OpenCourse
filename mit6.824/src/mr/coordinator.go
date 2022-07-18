@@ -18,6 +18,7 @@ const (
 const (
 	MapJob    = 1
 	ReduceJob = 2
+	FinishJob = 3
 )
 
 // Job map or reduce job

@@ -34,6 +34,7 @@ type FinishArg struct {
 }
 
 type FinishReply struct {
+	Files []string
 }
 
 // Cook up a unique-ish UNIX-domain socket name
