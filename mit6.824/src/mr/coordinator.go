@@ -7,6 +7,7 @@ import (
 	"net/rpc"
 	"os"
 	"sync"
+	"time"
 )
 
 const (
@@ -102,6 +103,10 @@ func (c *Coordinator) MakeReduce() {
 // TimeoutCheck when 10s end, job should be finished, if not put it to job task
 func (c *Coordinator) TimeoutCheck() {
 	// todo
+	select {
+	case <-time.After(10*time.Second):
+		// todo add job to task
+	}
 }
 
 //
