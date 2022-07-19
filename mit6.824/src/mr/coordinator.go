@@ -45,6 +45,8 @@ type Coordinator struct {
 
 	tmpFiles []string
 
+	finishCh map[int64]chan bool
+
 	wg sync.WaitGroup
 }
 
@@ -101,11 +103,11 @@ func (c *Coordinator) MakeReduce() {
 }
 
 // TimeoutCheck when 10s end, job should be finished, if not put it to job task
-func (c *Coordinator) TimeoutCheck() {
-	// todo
+func (c *Coordinator) TimeoutCheck(j Job) {
 	select {
-	case <-time.After(10*time.Second):
-		// todo add job to task
+		// todo recv finish chan return
+	case <-time.After(10 * time.Second):
+		c.jobTask <- j
 	}
 }
 
