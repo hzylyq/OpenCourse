@@ -40,6 +40,8 @@ type Coordinator struct {
 	reduceNum int
 	nReduce   int
 
+	runningJob []Job
+
 	tmpFiles []string
 
 	wg sync.WaitGroup
@@ -59,6 +61,8 @@ func (c *Coordinator) Task(arg *Arg, reply *Reply) error {
 		c.jobTask <- job
 	}()
 	// todo timeout check
+
+	go
 
 	return nil
 }
@@ -82,6 +86,8 @@ func (c *Coordinator) Finish(arg FinishArg, reply FinishReply) error {
 func (c *Coordinator) MakeReduce() {
 	reduceFileMap := make(map[int64][]string)
 
+	// todo file filter
+
 	for id, tmpFile := range reduceFileMap {
 		job := Job{
 			Id:    id,
@@ -91,6 +97,11 @@ func (c *Coordinator) MakeReduce() {
 
 		c.jobTask <- job
 	}
+}
+
+// TimeoutCheck when 10s end, job should be finished, if not put it to job task
+func (c *Coordinator) TimeoutCheck() {
+	// todo
 }
 
 //
