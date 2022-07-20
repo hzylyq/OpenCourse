@@ -51,7 +51,6 @@ func Worker(mapf func(string, string) []KeyValue,
 	// rather than being partitioned into NxM buckets.
 	//
 
-	// Your worker implementation here.
 	for {
 		var reply Reply
 
@@ -147,13 +146,16 @@ func Worker(mapf func(string, string) []KeyValue,
 			}
 
 			oFile.Close()
-
-		case FinishJob:
-			break
 		}
 
-		Finish(reply.Job)
+		if reply.JobType == MapJob || reply.JobType == ReduceJob {
+			Finish(reply.Job)
+		} else {
+			break
+		}
 	}
+
+	log.Println("all job finished")
 
 	// uncomment to send the Example RPC to the coordinator.
 	// var reply mapTaskReply
