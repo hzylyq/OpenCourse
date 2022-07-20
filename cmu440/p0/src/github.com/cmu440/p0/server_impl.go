@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 )
 
 type client struct {
@@ -43,20 +45,24 @@ func (mes *multiEchoServer) Start(port int) error {
 
 	go mes.boardCast()
 
-	for {
-		conn, err := mes.listener.Accept()
-		if err != nil {
-			return err
-		}
+	go func() {
+		for {
+			conn, err := mes.listener.Accept()
+			if err != nil {
+				panic(err)
+			}
 
-		c := &client{
-			conn: conn,
-			s:    mes,
-		}
+			c := &client{
+				conn: conn,
+				s:    mes,
+			}
 
-		mes.clientList = append(mes.clientList, c)
-		go c.Read()
-	}
+			mes.clientList = append(mes.clientList, c)
+			go c.Read()
+		}
+	}()
+
+	go http.ListenAndServe(":10000", nil)
 
 	return nil
 }
