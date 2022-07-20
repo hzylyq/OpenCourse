@@ -103,7 +103,8 @@ func (c *Coordinator) MakeReduce() {
 // TimeoutCheck when 10s end, job should be finished, if not put it to job task
 func (c *Coordinator) TimeoutCheck(j Job) {
 	select {
-	// todo recv finish chan return
+	case <-c.finishCh[j.Id]:
+		return
 	case <-time.After(10 * time.Second):
 		c.jobTask <- j
 	}
