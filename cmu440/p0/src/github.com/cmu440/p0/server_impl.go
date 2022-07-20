@@ -3,6 +3,7 @@
 package p0
 
 import (
+	"bufio"
 	"fmt"
 	"log"
 	"net"
@@ -86,16 +87,18 @@ func (mes *multiEchoServer) boardCast() {
 }
 
 func (c *client) Read() {
-	b := make([]byte, 1024)
-	if _, err := c.conn.Read(b); err != nil {
-		log.Fatal(err)
+	reader := bufio.NewReader(c.conn)
+
+	for {
+		msg, err := reader.ReadBytes('\n')
+		if err != nil {
+			panic(err)
+		}
+
+		if len(c.s.message) > MaxQueue {
+			return
+		}
+
+		c.s.message <- string(msg)
 	}
-
-	log.Println(string(b))
-
-	if len(c.s.message) > MaxQueue {
-		return
-	}
-
-	c.s.message <- string(b)
 }
