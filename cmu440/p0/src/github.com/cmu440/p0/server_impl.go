@@ -5,6 +5,7 @@ package p0
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -26,13 +27,14 @@ type multiEchoServer struct {
 
 	clientList []*client
 
-	count int
+	// close chan struct{}
 }
 
 // New creates and returns (but does not start) a new MultiEchoServer.
 func New() MultiEchoServer {
 	return &multiEchoServer{
 		message: make(chan string, 100),
+		// close:   make(chan struct{}),
 	}
 }
 
@@ -50,7 +52,8 @@ func (mes *multiEchoServer) Start(port int) error {
 		for {
 			conn, err := mes.listener.Accept()
 			if err != nil {
-				panic(err)
+				log.Println(err)
+				return
 			}
 
 			c := &client{
@@ -69,6 +72,7 @@ func (mes *multiEchoServer) Start(port int) error {
 }
 
 func (mes *multiEchoServer) Close() {
+	// mes.close <- struct{}{}
 	close(mes.message)
 	mes.listener.Close()
 }
@@ -80,7 +84,6 @@ func (mes *multiEchoServer) Count() int {
 func (mes *multiEchoServer) boardCast() {
 	for message := range mes.message {
 		for _, cli := range mes.clientList {
-			log.Println(message)
 			cli.conn.Write([]byte(message))
 		}
 	}
@@ -91,9 +94,20 @@ func (c *client) Read() {
 
 	for {
 		msg, err := reader.ReadBytes('\n')
-		if err != nil {
+		switch err {
+		case nil:
+			break
+		case io.EOF:
+			return
+		default:
 			panic(err)
 		}
+
+		// todo when close
+		// select {
+		// case <-c.s.close:
+		// 	return
+		// }
 
 		if len(c.s.message) > MaxQueue {
 			return
