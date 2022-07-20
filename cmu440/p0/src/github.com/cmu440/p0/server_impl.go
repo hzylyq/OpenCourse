@@ -8,12 +8,20 @@ import (
 	"net"
 )
 
+type client struct {
+	conn net.Conn
+
+	s *multiEchoServer
+}
+
+const MaxQueue = 100
+
 type multiEchoServer struct {
 	listener net.Listener
 
-	message chan []byte
+	message chan string
 
-	connList []net.Conn
+	clientList []*client
 
 	count int
 }
@@ -21,7 +29,7 @@ type multiEchoServer struct {
 // New creates and returns (but does not start) a new MultiEchoServer.
 func New() MultiEchoServer {
 	return &multiEchoServer{
-		message: make(chan []byte, 100),
+		message: make(chan string, 100),
 	}
 }
 
@@ -33,28 +41,22 @@ func (mes *multiEchoServer) Start(port int) error {
 
 	mes.listener = listener
 
+	go mes.boardCast()
+
 	for {
 		conn, err := mes.listener.Accept()
 		if err != nil {
 			return err
 		}
 
-		mes.connList = append(mes.connList, conn)
+		c := &client{
+			conn: conn,
+			s:    mes,
+		}
 
-		go func() {
-			var b []byte
-			if _, err = conn.Read(b); err != nil {
-				log.Fatal(err)
-			}
-
-			mes.message <- b
-
-			// mes.count +=
-
-		}()
+		mes.clientList = append(mes.clientList, c)
+		go c.Read()
 	}
-
-	mes.boardCast()
 
 	return nil
 }
@@ -65,14 +67,29 @@ func (mes *multiEchoServer) Close() {
 }
 
 func (mes *multiEchoServer) Count() int {
-	// TODO: implement this!
-	return -1
+	return len(mes.clientList)
 }
 
 func (mes *multiEchoServer) boardCast() {
 	for message := range mes.message {
-		for _, conn := range mes.connList {
-			conn.Write(message)
+		for _, cli := range mes.clientList {
+			log.Println(message)
+			cli.conn.Write([]byte(message))
 		}
 	}
+}
+
+func (c *client) Read() {
+	b := make([]byte, 1024)
+	if _, err := c.conn.Read(b); err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println(string(b))
+
+	if len(c.s.message) > MaxQueue {
+		return
+	}
+
+	c.s.message <- string(b)
 }
