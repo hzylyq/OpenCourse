@@ -34,18 +34,16 @@ type Job struct {
 type Coordinator struct {
 	// Your definitions here.
 	// master 节点
-	Idx      int
-	IsFinish bool
+	Idx int
 
-	jobTask   chan Job
-	reduceNum int
-	nReduce   int
-
-	runningJob []Job
+	jobTask chan Job
+	nReduce int
 
 	tmpFiles []string
 
 	finishCh map[int64]chan bool
+
+	State int // map/reduce/finish
 
 	wg sync.WaitGroup
 }
@@ -65,7 +63,7 @@ func (c *Coordinator) Task(arg *Arg, reply *Reply) error {
 	}()
 	// todo timeout check
 
-	go
+	go c.TimeoutCheck(reply.Job)
 
 	return nil
 }
@@ -105,7 +103,7 @@ func (c *Coordinator) MakeReduce() {
 // TimeoutCheck when 10s end, job should be finished, if not put it to job task
 func (c *Coordinator) TimeoutCheck(j Job) {
 	select {
-		// todo recv finish chan return
+	// todo recv finish chan return
 	case <-time.After(10 * time.Second):
 		c.jobTask <- j
 	}
@@ -145,18 +143,20 @@ func (c *Coordinator) Done() bool {
 
 	// Your code here.
 
-	return c.IsFinish
+	return c.State == FinishJob
 }
 
 // MakeCoordinator create a Coordinator.
 // main/mrcoordinator.go calls this function.
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-	// Your code here.
 
 	c := Coordinator{
 		nReduce: nReduce,
+		State:   MapJob,
 	}
+
+	c.jobTask = make(chan Job, nReduce)
 
 	// generate task queue
 	taskList := make([]Job, len(files))
@@ -170,13 +170,6 @@ func MakeCoordinator(files []string, nReduce int) *Coordinator {
 		task.File = append(task.File, file)
 		task.nReduce = nReduce
 
-		taskList[i] = task
-	}
-
-	log.Printf("%v", taskList)
-
-	c.jobTask = make(chan Job, nReduce)
-	for _, task := range taskList {
 		c.jobTask <- task
 	}
 
