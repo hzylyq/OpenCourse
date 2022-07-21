@@ -2,9 +2,15 @@
 
 package lsp
 
-import "errors"
+import (
+	"bufio"
+	"errors"
+	"net"
+)
 
 type client struct {
+	conn net.UDPConn
+	id   int
 }
 
 // NewClient creates, initiates, and returns a new client. This function
@@ -22,10 +28,16 @@ func NewClient(hostport string, params *Params) (Client, error) {
 }
 
 func (c *client) ConnID() int {
-	return -1
+	return c.id
 }
 
 func (c *client) Read() ([]byte, error) {
+	reader := bufio.NewReader(&c.conn)
+
+	for {
+		reader.()
+	}
+
 	// TODO: remove this line when you are ready to begin implementing this method.
 	select {} // Blocks indefinitely.
 	return nil, errors.New("not yet implemented")
@@ -36,5 +48,7 @@ func (c *client) Write(payload []byte) error {
 }
 
 func (c *client) Close() error {
+	c.conn.Close()
+
 	return errors.New("not yet implemented")
 }
