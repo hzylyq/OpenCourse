@@ -63,12 +63,6 @@ func (mes *multiEchoServer) Start(port int) error {
 		var miniId int64
 
 		for {
-			select {
-			case <-mes.close:
-				return
-			default:
-				break
-			}
 
 			conn, err := mes.listener.Accept()
 			if err != nil {
@@ -119,12 +113,22 @@ func (mes *multiEchoServer) Count() int {
 	return count
 }
 
+func (mes *multiEchoServer) RemoveClient(id int64) {
+	cliMap := <-mes.clients
+	delete(cliMap, id)
+	mes.clients <- cliMap
+
+}
+
 func (mes *multiEchoServer) boardCast() {
-	for message := range mes.message {
+	select {
+	case <-mes.close:
+		return
+	case msg := <-mes.message:
 		clients := <-mes.clients
 
 		for _, cli := range clients {
-			cli.conn.Write([]byte(message))
+			cli.recv <- msg
 		}
 
 		mes.clients <- clients
@@ -141,23 +145,11 @@ func (c *client) Read() {
 			break
 		case io.EOF:
 			c.conn.Close()
-
-			cliMap := <-c.s.clients
-
-			delete(cliMap, c.Id)
-
-			c.s.clients <- cliMap
-
+			c.s.RemoveClient(c.Id)
 			return
 		default:
 			panic(err)
 		}
-
-		// todo when close
-		// select {
-		// case <-c.s.close:
-		// 	return
-		// }
 
 		if len(c.s.message) > MaxQueue {
 			return
@@ -172,6 +164,7 @@ func (c *client) Write() {
 	case msg := <-c.recv:
 		c.conn.Write([]byte(msg))
 	case <-c.closeCh:
+		c.conn.Close()
 		return
 	}
 }
