@@ -100,7 +100,6 @@ func (mes *multiEchoServer) Start(port int) error {
 }
 
 func (mes *multiEchoServer) Close() {
-	// mes.close <- struct{}{}
 	mes.close <- struct{}{}
 	close(mes.message)
 	mes.listener.Close()
@@ -136,6 +135,14 @@ func (c *client) Read() {
 		case nil:
 			break
 		case io.EOF:
+			c.conn.Close()
+
+			cliMap := <-c.s.clients
+
+			delete(cliMap, c.Id)
+
+			c.s.clients <- cliMap
+
 			return
 		default:
 			panic(err)
