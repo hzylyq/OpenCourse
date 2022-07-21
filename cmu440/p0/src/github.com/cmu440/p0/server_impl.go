@@ -18,6 +18,10 @@ type client struct {
 	s *multiEchoServer
 
 	Id int64
+
+	recv chan string
+
+	closeCh chan struct{}
 }
 
 const MaxQueue = 100
@@ -91,6 +95,7 @@ func (mes *multiEchoServer) Start(port int) error {
 			}()
 
 			go c.Read()
+			// go c.Write()
 		}
 	}()
 
@@ -163,7 +168,10 @@ func (c *client) Read() {
 }
 
 func (c *client) Write() {
-	// todo
-
-	return
+	select {
+	case msg := <-c.recv:
+		c.conn.Write([]byte(msg))
+	case <-c.closeCh:
+		return
+	}
 }
