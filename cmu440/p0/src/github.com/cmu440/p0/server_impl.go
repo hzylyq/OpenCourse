@@ -20,7 +20,7 @@ type client struct {
 	closeCh chan struct{}
 }
 
-const MaxQueue = 100
+const maxL = 100
 
 type multiEchoServer struct {
 	currId   int64
@@ -55,13 +55,6 @@ func (mes *multiEchoServer) Start(port int) error {
 	go func() {
 
 		for {
-			// select {
-			// case <-mes.close:
-			// 	return
-			// default:
-			// 	break
-			// }
-
 			conn, err := mes.listener.Accept()
 			if err != nil {
 				log.Println(err)
@@ -74,6 +67,7 @@ func (mes *multiEchoServer) Start(port int) error {
 				conn: conn,
 				s:    mes,
 				id:   mes.currId,
+				recv: make(chan string, maxL),
 			}
 
 			clientMap := <-mes.clients
@@ -142,7 +136,7 @@ func (c *client) Read() {
 		// 	return
 		// }
 
-		if len(c.s.message) > MaxQueue {
+		if len(c.s.message) > maxL {
 			return
 		}
 
