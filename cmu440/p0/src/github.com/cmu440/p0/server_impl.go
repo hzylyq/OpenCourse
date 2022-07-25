@@ -13,14 +13,11 @@ import (
 )
 
 type client struct {
-	conn net.Conn
-
-	s *multiEchoServer
-
-	Id int64
-
-	recv chan string
-
+	id      int64
+	conn    net.Conn
+	s       *multiEchoServer
+	recv    chan string
+	send    chan string
 	closeCh chan struct{}
 }
 
@@ -73,7 +70,7 @@ func (mes *multiEchoServer) Start(port int) error {
 			c := &client{
 				conn: conn,
 				s:    mes,
-				Id:   miniId,
+				id:   miniId,
 			}
 
 			clientMap, ok := <-mes.clients
@@ -145,7 +142,7 @@ func (c *client) Read() {
 			break
 		case io.EOF:
 			c.conn.Close()
-			c.s.RemoveClient(c.Id)
+			c.s.RemoveClient(c.id)
 			return
 		default:
 			panic(err)
