@@ -13,53 +13,54 @@ import (
 )
 
 type client struct {
-	id      int64
 	conn    net.Conn
 	s       *multiEchoServer
+	id      int64
 	recv    chan string
-	send    chan string
 	closeCh chan struct{}
 }
 
 const MaxQueue = 100
 
 type multiEchoServer struct {
+	currId   int64
 	listener net.Listener
-
-	message chan string
-
-	clients chan map[int64]*client
-
-	close chan struct{}
+	message  chan string
+	clients  chan map[int64]*client
+	close    chan struct{}
 }
 
 // New creates and returns (but does not start) a new MultiEchoServer.
 func New() MultiEchoServer {
-
-	return &multiEchoServer{
+	s := &multiEchoServer{
 		message: make(chan string, 100),
 		clients: make(chan map[int64]*client, 1),
 		close:   make(chan struct{}, 1),
 	}
+
+	s.clients <- make(map[int64]*client)
+	return s
 }
 
 func (mes *multiEchoServer) Start(port int) error {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	var err error
+
+	mes.listener, err = net.Listen("tcp", fmt.Sprintf(":%d", port))
 	if err != nil {
 		return err
 	}
 
-	clientMap := make(map[int64]*client)
-	mes.clients <- clientMap
-
-	mes.listener = listener
-
 	go mes.boardCast()
 
 	go func() {
-		var miniId int64
 
 		for {
+			// select {
+			// case <-mes.close:
+			// 	return
+			// default:
+			// 	break
+			// }
 
 			conn, err := mes.listener.Accept()
 			if err != nil {
@@ -67,26 +68,23 @@ func (mes *multiEchoServer) Start(port int) error {
 				return
 			}
 
+			mes.currId++
+
 			c := &client{
 				conn: conn,
 				s:    mes,
-				id:   miniId,
+				id:   mes.currId,
 			}
 
-			clientMap, ok := <-mes.clients
-			if !ok {
-				clientMap = make(map[int64]*client)
-			}
+			clientMap := <-mes.clients
 
-			clientMap[miniId] = c
-			miniId++
+			clientMap[c.id] = c
 
 			go func() {
 				mes.clients <- clientMap
 			}()
 
 			go c.Read()
-			// go c.Write()
 		}
 	}()
 
@@ -110,22 +108,12 @@ func (mes *multiEchoServer) Count() int {
 	return count
 }
 
-func (mes *multiEchoServer) RemoveClient(id int64) {
-	cliMap := <-mes.clients
-	delete(cliMap, id)
-	mes.clients <- cliMap
-
-}
-
 func (mes *multiEchoServer) boardCast() {
-	select {
-	case <-mes.close:
-		return
-	case msg := <-mes.message:
+	for message := range mes.message {
 		clients := <-mes.clients
 
 		for _, cli := range clients {
-			cli.recv <- msg
+			cli.conn.Write([]byte(message))
 		}
 
 		mes.clients <- clients
@@ -141,12 +129,18 @@ func (c *client) Read() {
 		case nil:
 			break
 		case io.EOF:
-			c.conn.Close()
 			c.s.RemoveClient(c.id)
+			c.closeCh <- struct{}{}
 			return
 		default:
 			panic(err)
 		}
+
+		// todo when close
+		// select {
+		// case <-c.s.close:
+		// 	return
+		// }
 
 		if len(c.s.message) > MaxQueue {
 			return
@@ -164,4 +158,10 @@ func (c *client) Write() {
 		c.conn.Close()
 		return
 	}
+}
+
+func (mes *multiEchoServer) RemoveClient(id int64) {
+	cliMap := <-mes.clients
+	delete(cliMap, id)
+	mes.clients <- cliMap
 }

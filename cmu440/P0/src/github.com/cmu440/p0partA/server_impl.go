@@ -8,12 +8,16 @@ import (
 
 type keyValueServer struct {
 	// TODO: implement this!
+	store kvstore.KVStore
 }
 
 // New creates and returns (but does not start) a new KeyValueServer.
 func New(store kvstore.KVStore) KeyValueServer {
-	// TODO: implement this!
-	return nil
+	s := &keyValueServer{
+		store: store,
+	}
+
+	return s
 }
 
 func (kvs *keyValueServer) Start(port int) error {
