@@ -33,7 +33,7 @@ type multiEchoServer struct {
 // New creates and returns (but does not start) a new MultiEchoServer.
 func New() MultiEchoServer {
 	s := &multiEchoServer{
-		message: make(chan string, 100),
+		message: make(chan string, 10000),
 		clients: make(chan map[int64]*client, 1),
 		close:   make(chan struct{}, 1),
 	}
@@ -53,7 +53,6 @@ func (mes *multiEchoServer) Start(port int) error {
 	go mes.boardCast()
 
 	go func() {
-
 		for {
 			conn, err := mes.listener.Accept()
 			if err != nil {
@@ -71,14 +70,11 @@ func (mes *multiEchoServer) Start(port int) error {
 			}
 
 			clientMap := <-mes.clients
-
 			clientMap[c.id] = c
+			mes.clients <- clientMap
 
-			go func() {
-				mes.clients <- clientMap
-			}()
-
-			go c.Read()
+			go c.readLoop()
+			go c.writeLoop()
 		}
 	}()
 
@@ -103,18 +99,28 @@ func (mes *multiEchoServer) Count() int {
 }
 
 func (mes *multiEchoServer) boardCast() {
-	for message := range mes.message {
-		clients := <-mes.clients
+	for {
+		select {
+		case msg, ok := <-mes.message:
+			if !ok {
+				return
+			}
+			clients := <-mes.clients
 
-		for _, cli := range clients {
-			cli.conn.Write([]byte(message))
+			for _, cli := range clients {
+				select {
+				case cli.recv <- msg:
+				default:
+					break
+				}
+			}
+
+			mes.clients <- clients
 		}
-
-		mes.clients <- clients
 	}
 }
 
-func (c *client) Read() {
+func (c *client) readLoop() {
 	reader := bufio.NewReader(c.conn)
 
 	for {
@@ -130,27 +136,25 @@ func (c *client) Read() {
 			panic(err)
 		}
 
-		// todo when close
-		// select {
-		// case <-c.s.close:
-		// 	return
-		// }
-
-		if len(c.s.message) > maxL {
-			return
-		}
-
 		c.s.message <- string(msg)
 	}
 }
 
-func (c *client) Write() {
-	select {
-	case msg := <-c.recv:
-		c.conn.Write([]byte(msg))
-	case <-c.closeCh:
-		c.conn.Close()
-		return
+func (c *client) writeLoop() {
+	for {
+		select {
+		case msg, ok := <-c.recv:
+			if !ok {
+				return
+			}
+			_, err := c.conn.Write([]byte(msg))
+			if err != nil {
+				log.Println(err)
+				return
+			}
+		case <-c.closeCh:
+			c.conn.Close()
+		}
 	}
 }
 
