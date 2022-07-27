@@ -33,7 +33,7 @@ type multiEchoServer struct {
 // New creates and returns (but does not start) a new MultiEchoServer.
 func New() MultiEchoServer {
 	s := &multiEchoServer{
-		message: make(chan string, 10000),
+		message: make(chan string, maxL),
 		clients: make(chan map[int64]*client, 1),
 		close:   make(chan struct{}, 1),
 	}
@@ -101,17 +101,12 @@ func (mes *multiEchoServer) Count() int {
 func (mes *multiEchoServer) boardCast() {
 	for {
 		select {
-		case msg, ok := <-mes.message:
-			if !ok {
-				return
-			}
+		case msg := <-mes.message:
 			clients := <-mes.clients
 
 			for _, cli := range clients {
 				select {
 				case cli.recv <- msg:
-				default:
-					break
 				}
 			}
 
@@ -143,17 +138,14 @@ func (c *client) readLoop() {
 func (c *client) writeLoop() {
 	for {
 		select {
-		case msg, ok := <-c.recv:
-			if !ok {
-				return
-			}
+		case msg := <-c.recv:
 			_, err := c.conn.Write([]byte(msg))
 			if err != nil {
 				log.Println(err)
 				return
 			}
-		case <-c.closeCh:
-			c.conn.Close()
+		default:
+			break
 		}
 	}
 }
