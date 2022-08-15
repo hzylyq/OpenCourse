@@ -5,6 +5,6 @@ package kvstore
 // KVStore -- Interface for Key/Value stores
 type KVStore interface {
 	Put(key string, value []byte)
-	Get(key string) []([]byte)
+	Get(key string) [][]byte
 	Clear(key string)
 }

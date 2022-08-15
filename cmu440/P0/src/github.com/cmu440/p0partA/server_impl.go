@@ -3,12 +3,16 @@
 package p0partA
 
 import (
+	"fmt"
+	"net"
+
 	"github.com/cmu440/p0partA/kvstore"
 )
 
 type keyValueServer struct {
-	// TODO: implement this!
 	store kvstore.KVStore
+
+	ln net.Listener
 }
 
 // New creates and returns (but does not start) a new KeyValueServer.
@@ -21,7 +25,15 @@ func New(store kvstore.KVStore) KeyValueServer {
 }
 
 func (kvs *keyValueServer) Start(port int) error {
-	// TODO: implement this!
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	if err != nil {
+		return err
+	}
+
+	for {
+		listener.Accept()
+	}
+
 	return nil
 }
 
