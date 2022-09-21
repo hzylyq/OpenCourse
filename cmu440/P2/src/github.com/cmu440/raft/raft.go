@@ -84,6 +84,14 @@ type Raft struct {
 
 }
 
+type Status int
+
+const (
+	Leader    Status = 1
+	Follower  Status = 2
+	Candidate Status = 3
+)
+
 //
 // GetState()
 // ==========
@@ -135,6 +143,7 @@ type RequestVoteReply struct {
 // Example RequestVote RPC handler
 //
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
+
 	// Your code here (3A, 3B)
 }
 

@@ -4,14 +4,15 @@ package p0partA
 
 import (
 	"fmt"
+	"log"
 	"net"
-
+	
 	"github.com/cmu440/p0partA/kvstore"
 )
 
 type keyValueServer struct {
 	store kvstore.KVStore
-
+	
 	ln net.Listener
 }
 
@@ -20,8 +21,13 @@ func New(store kvstore.KVStore) KeyValueServer {
 	s := &keyValueServer{
 		store: store,
 	}
-
+	
 	return s
+}
+
+type client struct {
+	id   int64
+	conn net.Conn
 }
 
 func (kvs *keyValueServer) Start(port int) error {
@@ -29,11 +35,21 @@ func (kvs *keyValueServer) Start(port int) error {
 	if err != nil {
 		return err
 	}
-
-	for {
-		listener.Accept()
-	}
-
+	
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				log.Println(err)
+				return
+			}
+			
+			go
+			
+		}
+		
+	}()
+	
 	return nil
 }
 
