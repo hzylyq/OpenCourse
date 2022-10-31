@@ -48,6 +48,7 @@ type Coordinator struct {
 	wg sync.WaitGroup
 }
 
+// GenMapTask generate task
 // Your code here -- RPC handlers for the worker to call.
 func (c *Coordinator) GenMapTask() {
 
