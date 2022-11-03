@@ -52,50 +52,23 @@ func Worker(mapf func(string, string) []KeyValue,
 	//
 
 	for {
-		var reply Reply
+		args := MapReduceArgs{
+			MessageType: MessageRequest,
+			Task:        MapReduceTask{},
+		}
 
-		call("Coordinator.Task", &Arg{}, &reply)
+		reply := MapReduceReply{}
 
+		ok := call("Coordinator.Task", &args, &reply)
+		if !ok {
+			log.Println("call rpc failed")
+			break
+		}
 		log.Printf("%v", reply)
 
-		switch reply.JobType {
+		switch reply.Task.TaskType {
 		case MapJob:
-			log.Printf("task is map job")
-			intermediate := make([]KeyValue, 0)
-			for _, filename := range reply.File {
-				file, err := os.Open(filename)
-				if err != nil {
-					log.Fatalf("cannot open %v", filename)
-				}
-				content, err := ioutil.ReadAll(file)
-				if err != nil {
-					log.Fatalf("cannot read %v", filename)
-				}
-				file.Close()
-				kva := mapf(filename, string(content))
-				intermediate = append(intermediate, kva...)
-			}
-			sort.Sort(ByKey(intermediate))
-
-			nReduce := reply.nReduce
-
-			outPutFiles := make([]*os.File, reply.nReduce)
-			fileEncs := make([]*json.Encoder, nReduce)
-
-			for i := 0; i < nReduce; i++ {
-				outPutFiles[i], _ = os.CreateTemp("mr-tmp", fmt.Sprintf("mr-%d-%d", reply.Id, i))
-				fileEncs[i] = json.NewEncoder(outPutFiles[i])
-			}
-
-			for _, kv := range intermediate {
-				i := ihash(kv.Key) % reply.nReduce
-				enc := fileEncs[i]
-
-				err := enc.Encode(&kv)
-				if err != nil {
-					panic("json encode failed")
-				}
-			}
+			mapTask(mapf, reply.Task)
 
 		case ReduceJob:
 			log.Printf("task is reduce job")
@@ -146,6 +119,8 @@ func Worker(mapf func(string, string) []KeyValue,
 			}
 
 			oFile.Close()
+		case WaitJob:
+
 		}
 
 		if reply.JobType == MapJob || reply.JobType == ReduceJob {
@@ -153,6 +128,7 @@ func Worker(mapf func(string, string) []KeyValue,
 		} else {
 			break
 		}
+
 	}
 
 	log.Println("all job finished")
@@ -163,6 +139,51 @@ func Worker(mapf func(string, string) []KeyValue,
 
 	// keyValues := mapf(reply.File, reply.)
 
+}
+
+func mapTask(mapF func(string, string) []KeyValue, task MapReduceTask) {
+	log.Printf("task is map job")
+	intermediate := make([]KeyValue, 0)
+
+	fileName := task.MapFile
+
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Fatalf("cannot open %v", fileName)
+	}
+
+	content, err := ioutil.ReadAll(file)
+	if err != nil {
+		log.Fatalf("cannot read %v", fileName)
+	}
+	file.Close()
+	kva := mapF(fileName, string(content))
+	intermediate = append(intermediate, kva...)
+
+	for _, filename := range reply.File {
+
+	}
+	sort.Sort(ByKey(intermediate))
+
+	nReduce := reply.nReduce
+
+	outPutFiles := make([]*os.File, reply.nReduce)
+	fileEncs := make([]*json.Encoder, nReduce)
+
+	for i := 0; i < nReduce; i++ {
+		outPutFiles[i], _ = os.CreateTemp("mr-tmp", fmt.Sprintf("mr-%d-%d", reply.Id, i))
+		fileEncs[i] = json.NewEncoder(outPutFiles[i])
+	}
+
+	for _, kv := range intermediate {
+		i := ihash(kv.Key) % reply.nReduce
+		enc := fileEncs[i]
+
+		err := enc.Encode(&kv)
+		if err != nil {
+			panic("json encode failed")
+		}
+	}
 }
 
 // CallExample example function to show how to make an RPC call to the coordinator.

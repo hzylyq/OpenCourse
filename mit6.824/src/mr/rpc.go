@@ -6,8 +6,24 @@ package mr
 // remember to capitalize all names.
 //
 
-import "os"
-import "strconv"
+import (
+	"os"
+	"strconv"
+)
+
+const (
+	MessageRequest = 1
+	FinishRequest  = 2
+)
+
+type MapReduceArgs struct {
+	MessageType int
+	Task        MapReduceTask
+}
+
+type MapReduceReply struct {
+	Task MapReduceTask
+}
 
 //
 // example to show how to declare the arguments

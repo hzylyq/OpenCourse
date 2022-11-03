@@ -19,7 +19,7 @@ const (
 const (
 	MapJob    = 1
 	ReduceJob = 2
-	FinishJob = 3
+	WaitJob   = 3
 )
 
 // Job map or reduce job
@@ -31,21 +31,31 @@ type Job struct {
 	nReduce int
 }
 
+type MapReduceTask struct {
+	TaskType   int
+	TaskStatus int
+	TaskNum    int
+
+	MapFile    string
+	ReduceFile []string
+
+	NumReduce int
+	NumMap    int
+}
+
 type Coordinator struct {
-	// Your definitions here.
-	// master 节点
-	Idx int
+	NumMap            int
+	NumMapFinished    int
+	NumReduce         int
+	NumReduceFinished int
 
-	jobTask chan Job
-	nReduce int
+	MapTasks    []MapReduceTask
+	ReduceTasks []MapReduceTask
 
-	tmpFiles []string
+	MapFinish    bool
+	ReduceFinish bool
 
-	finishCh map[int64]chan bool
-
-	State int // map/reduce/finish
-
-	wg sync.WaitGroup
+	mu sync.Mutex
 }
 
 // GenMapTask generate task
