@@ -22,22 +22,14 @@ const (
 	WaitJob   = 3
 )
 
-// Job map or reduce job
-type Job struct {
-	JobType int
-	File    []string
-	Id      int64
-	State   int
-	nReduce int
-}
 
 type MapReduceTask struct {
 	TaskType   int
 	TaskStatus int
 	TaskNum    int
 
-	MapFile    string
-	ReduceFile []string
+	MapFile     string
+	ReduceFiles []string
 
 	NumReduce int
 	NumMap    int
@@ -64,61 +56,23 @@ func (c *Coordinator) GenMapTask() {
 
 }
 
-func (c *Coordinator) Task(arg *Arg, reply *Reply) error {
-	job := <-c.jobTask
-	reply.Job = job
+func (c *Coordinator) MakeTask(args *MapReduceArgs, reply *MapReduceReply) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-	go func() {
-		job.State = InProcess
-		c.jobTask <- job
-	}()
-	// todo timeout check
-
-	go c.TimeoutCheck(reply.Job)
-
-	return nil
-}
-
-func (c *Coordinator) Finish(arg FinishArg, reply FinishReply) error {
-	switch arg.JobType {
-	case MapJob:
-		if len(c.jobTask) == 0 {
-			// generate reduce task
+	if args.MessageType == MessageRequest {
+		if !c.MapFinish {
+			for i, task := range c.MapTasks {
+				if task.TaskStatus ==
+			}
 		}
-
-		c.tmpFiles = append(c.tmpFiles, reply.Files...)
-
-	case ReduceJob:
-
 	}
 
-	return nil
-}
-
-func (c *Coordinator) MakeReduce() {
-	reduceFileMap := make(map[int64][]string)
-
-	// todo file filter
-
-	for id, tmpFile := range reduceFileMap {
-		job := Job{
-			Id:    id,
-			State: Idle,
-			File:  tmpFile,
-		}
-
-		c.jobTask <- job
-	}
 }
 
 // TimeoutCheck when 10s end, job should be finished, if not put it to job task
 func (c *Coordinator) TimeoutCheck(j Job) {
-	select {
-	case <-c.finishCh[j.Id]:
-		return
-	case <-time.After(10 * time.Second):
-		c.jobTask <- j
-	}
+
 }
 
 //

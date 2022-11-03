@@ -9,6 +9,7 @@ import (
 	"net/rpc"
 	"os"
 	"sort"
+	"time"
 )
 
 type Work struct {
@@ -69,58 +70,10 @@ func Worker(mapf func(string, string) []KeyValue,
 		switch reply.Task.TaskType {
 		case MapJob:
 			mapTask(mapf, reply.Task)
-
 		case ReduceJob:
-			log.Printf("task is reduce job")
-
-			// todo open files
-
-			var intermediate []KeyValue
-			for _, file := range reply.File {
-				f, err := os.Open(file)
-				if err != nil {
-					panic(err)
-				}
-
-				dec := json.NewDecoder(f)
-				for {
-					var kv KeyValue
-					if err = dec.Decode(&kv); err != nil {
-						break
-					}
-
-					intermediate = append(intermediate, kv)
-				}
-
-				f.Close()
-			}
-
-			oFile, err := os.CreateTemp("./", fmt.Sprintf("mr-out-%d", reply.Id))
-			if err != nil {
-				panic(err)
-			}
-
-			i := 0
-			for i < len(intermediate) {
-				j := i + 1
-				for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
-					j++
-				}
-				var values []string
-				for k := i; k < j; k++ {
-					values = append(values, intermediate[k].Value)
-				}
-				output := reducef(intermediate[i].Key, values)
-
-				// this is the correct format for each line of Reduce output.
-				fmt.Fprintf(oFile, "%v %v\n", intermediate[i].Key, output)
-
-				i = j
-			}
-
-			oFile.Close()
+			reduceTask(reducef, reply.Task)
 		case WaitJob:
-
+			waitTask()
 		}
 
 		if reply.JobType == MapJob || reply.JobType == ReduceJob {
@@ -143,7 +96,6 @@ func Worker(mapf func(string, string) []KeyValue,
 
 func mapTask(mapF func(string, string) []KeyValue, task MapReduceTask) {
 	log.Printf("task is map job")
-	intermediate := make([]KeyValue, 0)
 
 	fileName := task.MapFile
 
@@ -158,32 +110,105 @@ func mapTask(mapF func(string, string) []KeyValue, task MapReduceTask) {
 	}
 	file.Close()
 	kva := mapF(fileName, string(content))
-	intermediate = append(intermediate, kva...)
 
-	for _, filename := range reply.File {
+	kvaa := make([][]KeyValue, task.NumReduce)
 
+	for _, kv := range kva {
+		idx := ihash(kv.Key) % task.NumReduce
+		kvaa[idx] = append(kvaa[idx], kv)
 	}
+
+	for i := range kvaa {
+		storeIntermediateFile(kvaa[i], intermediateFileName(task.TaskNum, i))
+	}
+
+	finishTask(task)
+}
+
+func reduceTask(reduceF func(string, []string) string, task MapReduceTask) {
+	log.Printf("task is reduce job")
+
+	var intermediate []KeyValue
+	for _, filename := range task.ReduceFiles {
+		intermediate = append(intermediate, loadIntermediateFile(filename)...)
+	}
+
 	sort.Sort(ByKey(intermediate))
 
-	nReduce := reply.nReduce
+	oname := fmt.Sprintf("mr-out-%d", task.TaskNum)
+	ofile, _ := os.Create(oname)
 
-	outPutFiles := make([]*os.File, reply.nReduce)
-	fileEncs := make([]*json.Encoder, nReduce)
+	//
+	// call Reduce on each distinct key in intermediate[],
+	// and print the result to mr-out-0.
+	//
+	i := 0
+	for i < len(intermediate) {
+		j := i + 1
+		for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
+			j++
+		}
+		values := []string{}
+		for k := i; k < j; k++ {
+			values = append(values, intermediate[k].Value)
+		}
+		output := reduceF(intermediate[i].Key, values)
 
-	for i := 0; i < nReduce; i++ {
-		outPutFiles[i], _ = os.CreateTemp("mr-tmp", fmt.Sprintf("mr-%d-%d", reply.Id, i))
-		fileEncs[i] = json.NewEncoder(outPutFiles[i])
+		// this is the correct format for each line of Reduce output.
+		fmt.Fprintf(ofile, "%v %v\n", intermediate[i].Key, output)
+
+		i = j
 	}
 
-	for _, kv := range intermediate {
-		i := ihash(kv.Key) % reply.nReduce
-		enc := fileEncs[i]
+	ofile.Close()
 
-		err := enc.Encode(&kv)
+	finishTask(task)
+}
+
+func waitTask() {
+	time.Sleep(1 * time.Second)
+}
+
+func storeIntermediateFile(kva []KeyValue, fileName string) {
+	file, err := os.Create(fileName)
+	if err != nil {
+		log.Fatalf("can open %v", fileName)
+	}
+	defer file.Close()
+
+	enc := json.NewEncoder(file)
+
+	for _, kv := range kva {
+		err = enc.Encode(&kv)
 		if err != nil {
-			panic("json encode failed")
+			log.Fatal("encode failed")
 		}
 	}
+}
+
+func intermediateFileName(numMapTask, numReduceTask int) string {
+	return fmt.Sprintf("mr-%d-%d", numMapTask, numReduceTask)
+}
+
+func loadIntermediateFile(fileName string) []KeyValue {
+	file, err := os.Open(fileName)
+	if err != nil {
+		log.Fatalf("cannot open %v", fileName)
+	}
+	defer file.Close()
+
+	kva := make([]KeyValue, 0)
+	dec := json.NewDecoder(file)
+	for {
+		kv := KeyValue{}
+
+		if err = dec.Decode(&kv); err != nil {
+			log.Fatal("decode failed")
+		}
+		kva = append(kva, kv)
+	}
+
+	return kva
 }
 
 // CallExample example function to show how to make an RPC call to the coordinator.
@@ -212,14 +237,17 @@ func CallExample() {
 	}
 }
 
-func Finish(job Job) {
-	args := FinishArg{Job: job}
-	reply := FinishReply{}
+func finishTask(task MapReduceTask) {
+	args := MapReduceArgs{
+		MessageType: FinishRequest,
+		Task:        task,
+	}
+	reply := MapReduceReply{}
 	ok := call("Coordinator.Example", &args, &reply)
 	if ok {
 		fmt.Printf("finished")
 	} else {
-		fmt.Printf("call failed!\n")
+		fmt.Printf("call failed!")
 	}
 }
 
