@@ -7,7 +7,6 @@ import (
 	"net/rpc"
 	"os"
 	"sync"
-	"time"
 )
 
 const (
@@ -21,7 +20,6 @@ const (
 	ReduceJob = 2
 	WaitJob   = 3
 )
-
 
 type MapReduceTask struct {
 	TaskType   int
@@ -56,17 +54,45 @@ func (c *Coordinator) GenMapTask() {
 
 }
 
-func (c *Coordinator) MakeTask(args *MapReduceArgs, reply *MapReduceReply) {
+func (c *Coordinator) MakeTask(args *MapReduceArgs, reply *MapReduceReply) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if args.MessageType == MessageRequest {
 		if !c.MapFinish {
 			for i, task := range c.MapTasks {
-				if task.TaskStatus ==
+				if task.TaskStatus == UnAssigned {
+					c.MapTasks[i].TaskStatus = Assigned
+					reply.Task = c.MapTasks[i]
+
+					return nil
+				}
 			}
+			reply.Task.TaskType = WaitJob
+			return nil
+		}
+
+		if !c.ReduceFinish {
+			for i, task := range c.ReduceTasks {
+				if task.TaskStatus == UnAssigned {
+					c.ReduceTasks[i].TaskStatus = Assigned
+					reply.Task = c.ReduceTasks[i]
+
+					return nil
+				}
+			}
+
+			reply.Task.TaskType = WaitJob
+			return nil
 		}
 	}
+
+	if args.MessageType == FinishRequest {
+		if args.Task.TaskType == MapJob
+
+	}
+
+	return nil
 
 }
 

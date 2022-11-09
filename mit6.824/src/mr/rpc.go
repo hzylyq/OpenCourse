@@ -16,6 +16,11 @@ const (
 	FinishRequest  = 2
 )
 
+const (
+	UnAssigned = 0
+	Assigned   = 1
+)
+
 type MapReduceArgs struct {
 	MessageType int
 	Task        MapReduceTask
