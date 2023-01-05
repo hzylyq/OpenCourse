@@ -16,18 +16,23 @@ const (
 )
 
 const (
+	UnAssigned = 0
+	Assigned   = 1
+)
+
+const (
 	MapJob    = 1
 	ReduceJob = 2
 	WaitJob   = 3
 )
 
 type MapReduceTask struct {
-	TaskType   int
-	TaskStatus int
-	TaskNum    int
-
-	MapFile     string
-	ReduceFiles []string
+	TaskType     int
+	TaskStatus   int
+	TaskNum      int
+	RunningState int
+	MapFile      string
+	ReduceFiles  []string
 
 	NumReduce int
 	NumMap    int
@@ -61,7 +66,7 @@ func (c *Coordinator) MakeTask(args *MapReduceArgs, reply *MapReduceReply) error
 	if args.MessageType == MessageRequest {
 		if !c.MapFinish {
 			for i, task := range c.MapTasks {
-				if task.TaskStatus == UnAssigned {
+				if task.TaskStatus ==  UnAssigned{
 					c.MapTasks[i].TaskStatus = Assigned
 					reply.Task = c.MapTasks[i]
 

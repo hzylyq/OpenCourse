@@ -18,14 +18,15 @@ package raft
 //
 
 import (
+	"bytes"
 	//	"bytes"
 	"sync"
 	"sync/atomic"
 
+	"6.824/labgob"
 	//	"6.824/labgob"
 	"6.824/labrpc"
 )
-
 
 //
 // as each Raft peer becomes aware that successive log entries are
@@ -50,6 +51,28 @@ type ApplyMsg struct {
 	SnapshotIndex int
 }
 
+type PersistentState struct {
+	currentTerm int
+	voteFor     *int
+	logs        [][]byte
+}
+
+type VolatileState struct {
+	commitIndex int
+	lastApplied int
+}
+
+type LeaderVolatileState struct {
+	nextIndex  []int
+	matchIndex []int
+}
+
+type RaftState struct {
+	perState    PersistentState
+	volState    VolatileState
+	leaderState LeaderVolatileState
+}
+
 //
 // A Go object implementing a single Raft peer.
 //
@@ -63,7 +86,7 @@ type Raft struct {
 	// Your data here (2A, 2B, 2C).
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
-
+	sate RaftState
 }
 
 // return currentTerm and whether this server
@@ -84,6 +107,19 @@ func (rf *Raft) GetState() (int, bool) {
 func (rf *Raft) persist() {
 	// Your code here (2C).
 	// Example:
+
+	w := new(bytes.Buffer)
+	e := labgob.NewEncoder(w)
+
+	err := e.Encode(rf.sate)
+	if err != nil {
+		DPrintf("encode err", err)
+		return
+	}
+
+	data := w.Bytes()
+	rf.persister.SaveRaftState(data)
+
 	// w := new(bytes.Buffer)
 	// e := labgob.NewEncoder(w)
 	// e.Encode(rf.xxx)
@@ -92,13 +128,24 @@ func (rf *Raft) persist() {
 	// rf.persister.SaveRaftState(data)
 }
 
-
 //
 // restore previously persisted state.
 //
 func (rf *Raft) readPersist(data []byte) {
 	if data == nil || len(data) < 1 { // bootstrap without any state?
 		return
+	}
+
+	data := rf.persister.ReadRaftState()
+
+	r := bytes.NewBuffer(data)
+	d := labgob.NewDecoder(r)
+
+	var state RaftState
+	if d.Decode(&state) != nil {
+		// 初始化raftstate
+	} else {
+		rf.sate = state
 	}
 	// Your code here (2C).
 	// Example:
@@ -114,7 +161,6 @@ func (rf *Raft) readPersist(data []byte) {
 	//   rf.yyy = yyy
 	// }
 }
-
 
 //
 // A service wants to switch to snapshot.  Only do so if Raft hasn't
@@ -135,7 +181,6 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
 	// Your code here (2D).
 
 }
-
 
 //
 // example RequestVote RPC arguments structure.
@@ -194,7 +239,6 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 	return ok
 }
 
-
 //
 // the service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log. if this
@@ -215,7 +259,6 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	isLeader := true
 
 	// Your code here (2B).
-
 
 	return index, term, isLeader
 }
@@ -278,7 +321,6 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	// start ticker goroutine to start elections
 	go rf.ticker()
-
 
 	return rf
 }
