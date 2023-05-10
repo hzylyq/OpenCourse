@@ -16,7 +16,8 @@ const (
 	FinishRequest  = 2
 )
 
-type MapReduceArgs struct {
+type callResp struct {
+	JobType
 	MessageType int
 	Task        MapReduceTask
 }

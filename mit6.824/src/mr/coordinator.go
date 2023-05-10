@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/rpc"
 	"os"
-	"sync"
+	"time"
 )
 
 const (
@@ -24,7 +24,17 @@ const (
 	MapJob    = 1
 	ReduceJob = 2
 	WaitJob   = 3
+	FinishJob = 4
 )
+
+type JobType int
+
+type Job struct {
+	Type      JobType
+	InputFile []string
+	JobId     int64
+	ReduceNum int
+}
 
 type MapReduceTask struct {
 	TaskType     int
@@ -49,8 +59,14 @@ type Coordinator struct {
 
 	MapFinish    bool
 	ReduceFinish bool
+	State        int
+}
 
-	mu sync.Mutex
+type task struct {
+	FileName  string
+	Id        int
+	StartTime time.Time
+	Status    int
 }
 
 // GenMapTask generate task
@@ -59,14 +75,11 @@ func (c *Coordinator) GenMapTask() {
 
 }
 
-func (c *Coordinator) MakeTask(args *MapReduceArgs, reply *MapReduceReply) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
+func (c *Coordinator) MakeTask(args *callResp, reply *MapReduceReply) error {
 	if args.MessageType == MessageRequest {
 		if !c.MapFinish {
 			for i, task := range c.MapTasks {
-				if task.TaskStatus ==  UnAssigned{
+				if task.TaskStatus == UnAssigned {
 					c.MapTasks[i].TaskStatus = Assigned
 					reply.Task = c.MapTasks[i]
 
@@ -93,8 +106,9 @@ func (c *Coordinator) MakeTask(args *MapReduceArgs, reply *MapReduceReply) error
 	}
 
 	if args.MessageType == FinishRequest {
-		if args.Task.TaskType == MapJob
+		if args.Task.TaskType == MapJob {
 
+		}
 	}
 
 	return nil
@@ -147,7 +161,6 @@ func (c *Coordinator) Done() bool {
 // main/mrcoordinator.go calls this function.
 // nReduce is the number of reduce tasks to use.
 func MakeCoordinator(files []string, nReduce int) *Coordinator {
-
 	c := Coordinator{
 		nReduce: nReduce,
 		State:   MapJob,

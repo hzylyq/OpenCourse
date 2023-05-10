@@ -53,30 +53,37 @@ func Worker(mapf func(string, string) []KeyValue,
 	//
 
 	for {
-		args := MapReduceArgs{
-			MessageType: MessageRequest,
-			Task:        MapReduceTask{},
-		}
+		resp := doHeartBeat()
+		log.Printf("worker, receive resp %v\n", resp)
 
-		reply := MapReduceReply{}
+		// args := callResp{
+		// 	MessageType: MessageRequest,
+		// 	Task:        MapReduceTask{},
+		// }
+		//
+		// reply := MapReduceReply{}
+		//
+		// ok := call("Coordinator.Task", &args, &reply)
+		// if !ok {
+		// 	log.Println("call rpc failed")
+		// 	break
+		// }
+		// log.Printf("%v", reply)
 
-		ok := call("Coordinator.Task", &args, &reply)
-		if !ok {
-			log.Println("call rpc failed")
-			break
-		}
-		log.Printf("%v", reply)
-
-		switch reply.Task.TaskType {
+		switch resp.JobType {
 		case MapJob:
 			mapTask(mapf, reply.Task)
 		case ReduceJob:
 			reduceTask(reducef, reply.Task)
 		case WaitJob:
 			waitTask()
+		case FinishJob:
+			return
+		default:
+			panic(fmt.Sprintf("unknown job %d", resp.JobType)
 		}
 
-		if reply.JobType == MapJob || reply.JobType == ReduceJob {
+		if reply.Task.TaskType == MapJob || reply.Task.TaskType == ReduceJob {
 			Finish(reply.Job)
 		} else {
 			break
@@ -92,6 +99,10 @@ func Worker(mapf func(string, string) []KeyValue,
 
 	// keyValues := mapf(reply.File, reply.)
 
+}
+
+func doHeartBeat() callResp {
+	return callResp{}
 }
 
 func mapTask(mapF func(string, string) []KeyValue, task MapReduceTask) {
@@ -148,7 +159,7 @@ func reduceTask(reduceF func(string, []string) string, task MapReduceTask) {
 		for j < len(intermediate) && intermediate[j].Key == intermediate[i].Key {
 			j++
 		}
-		values := []string{}
+		values := make([]string, 0)
 		for k := i; k < j; k++ {
 			values = append(values, intermediate[k].Value)
 		}
@@ -238,7 +249,7 @@ func CallExample() {
 }
 
 func finishTask(task MapReduceTask) {
-	args := MapReduceArgs{
+	args := callResp{
 		MessageType: FinishRequest,
 		Task:        task,
 	}
